@@ -1,0 +1,68 @@
+
+MODEL_CONFIG:
+  LR_IMG_SIZE: 32
+  HR_IMG_SIZE: 64
+  UP_SCALE: 2
+  TARGET_IMG: 'sample.png'
+
+TRAINING_CONFIG:
+
+  EPOCH: 150
+  BATCH_SIZE: 64
+
+  # lr and lambda
+  G_LR : 20e-4
+  D_LR : 20e-4
+  LAMBDA_G_FAKE  : 1
+  LAMBDA_G_RECON : 30
+  LAMBDA_G_SYTLE : 50
+  LAMBDA_G_PERCEP : 0.01
+  LAMBDA_D_FAKE  : 1
+  LAMBDA_D_REAL  : 1
+  LAMBDA_GP : 20000
+
+  GAN_LOSS : 'wgan'
+
+  # Optimizer
+  OPTIM : ADAM
+  BETA1: 0.5
+  BETA2: 0.999
+  D_CRITIC : 1
+  G_CRITIC : 1
+
+  # Settings
+  NUM_WORKER : 4
+  MODE : 'train'
+  CPU_SEED : 123
+  GPU_SEED : 456
+  USE_TENSORBOARD : 'False' # 'True' or 'False'
+
+  #spectral norm
+  G_SPEC : 'False'
+  D_SPEC : 'True'
+
+  # Directory
+  HR_IMG_DIR : 'HR_image_64'
+  LR_IMG_DIR : 'LR_image'
+  TRAIN_DIR : 'super_resolution'
+  LOG_DIR : 'logs'
+  SAMPLE_DIR : 'samples'
+  RESULT_DIR : 'results'
+  MODEL_DIR : 'models'
+
+  # GPU
+  GPU: 1
+
+  # Step Size
+
+  SAMPLE_STEP : 1 # epoch based
+  LOG_STEP : 100 # iteration based
+  SAVE_STEP : 5 # epoch based
+  SAVE_START : 10
+  DECAY_START : 60
+  LR_DECAY_STEP : 10
+
+TEST_CONFIG:
+  TEST_EPOCH : 100
+
+
