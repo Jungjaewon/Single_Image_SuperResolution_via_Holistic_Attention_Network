@@ -6,12 +6,6 @@ import torch.nn as nn
 import os.path as osp
 from PIL import Image
 from torchvision import transforms as T
-from model import SRN
-from model import DSN64
-from model import DSN128
-from model import HR_Discriminator64
-from model import HR_Discriminator128
-from model import LR_Discriminator32
 from torchvision.utils import save_image
 
 

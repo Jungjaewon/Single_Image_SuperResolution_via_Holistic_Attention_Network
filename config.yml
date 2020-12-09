@@ -3,7 +3,14 @@ MODEL_CONFIG:
   LR_IMG_SIZE: 32
   HR_IMG_SIZE: 64
   UP_SCALE: 4
-  TARGET_IMG: 'sample.png'
+  N_RESGROUPS: 10
+  N_RESBLOCKS : 20
+  N_FEATURES : 64
+  REDUCTION: 16
+  RGB_RANGE : 255
+  N_COLORS : 3
+  RES_SCALE : 1
+
 
 TRAINING_CONFIG:
 
@@ -21,11 +28,16 @@ TRAINING_CONFIG:
   LAMBDA_GP : 1000
 
   GAN_LOSS : 'wgan'
+  LOSS : 'L1'
+
+  #Model Settings
+
 
   # Optimizer
   OPTIM : ADAM
   BETA1: 0.5
   BETA2: 0.999
+  EPSILON : 1e-8
   D_CRITIC : 1
   G_CRITIC : 3
 

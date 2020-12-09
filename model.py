@@ -2,11 +2,9 @@ import common
 
 import torch.nn as nn
 
-
-def make_model(args, parent=False):
-    return RCAN(args)
-
 # this code is from https://github.com/yulunzhang/RCAN
+# A part of the code is changed.
+
 
 ## Channel Attention (CA) Layer
 class CALayer(nn.Module):
@@ -71,29 +69,29 @@ class ResidualGroup(nn.Module):
 
 ## Residual Channel Attention Network (RCAN)
 class RCAN(nn.Module):
-    def __init__(self, args, conv=common.default_conv):
+    def __init__(self, config, conv=common.default_conv):
         super(RCAN, self).__init__()
 
-        n_resgroups = args.n_resgroups
-        n_resblocks = args.n_resblocks
-        n_feats = args.n_feats
+        n_resgroups = config['MODEL_CONFIG']['N_RESGROUPS']
+        n_resblocks = config['MODEL_CONFIG']['N_RESBLOCKS']
+        n_feats = config['MODEL_CONFIG']['N_FEATURES']
         kernel_size = 3
-        reduction = args.reduction
-        scale = args.scale[0]
+        reduction = config['MODEL_CONFIG']['REDUCTION']
+        scale = config['MODEL_CONFIG']['UP_SCALE']
         act = nn.ReLU(True)
 
         # RGB mean for DIV2K
         rgb_mean = (0.4488, 0.4371, 0.4040)
         rgb_std = (1.0, 1.0, 1.0)
-        self.sub_mean = common.MeanShift(args.rgb_range, rgb_mean, rgb_std)
+        self.sub_mean = common.MeanShift(config['MODEL_CONFIG']['RGB_RANGE'], rgb_mean, rgb_std)
 
         # define head module
-        modules_head = [conv(args.n_colors, n_feats, kernel_size)]
+        modules_head = [conv(config['MODEL_CONFIG']['N_COLORS'], n_feats, kernel_size)]
 
         # define body module
         modules_body = [
             ResidualGroup(
-                conv, n_feats, kernel_size, reduction, act=act, res_scale=args.res_scale, n_resblocks=n_resblocks) \
+                conv, n_feats, kernel_size, reduction, act=act, res_scale=config['MODEL_CONFIG']['RES_SCALE'], n_resblocks=n_resblocks) \
             for _ in range(n_resgroups)]
 
         modules_body.append(conv(n_feats, n_feats, kernel_size))
@@ -101,9 +99,9 @@ class RCAN(nn.Module):
         # define tail module
         modules_tail = [
             common.Upsampler(conv, scale, n_feats, act=False),
-            conv(n_feats, args.n_colors, kernel_size)]
+            conv(n_feats, config['MODEL_CONFIG']['N_COLORS'], kernel_size)]
 
-        self.add_mean = common.MeanShift(args.rgb_range, rgb_mean, rgb_std, 1)
+        self.add_mean = common.MeanShift(config['MODEL_CONFIG']['RGB_RANGE'], rgb_mean, rgb_std, 1)
 
         self.head = nn.Sequential(*modules_head)
         self.body = nn.Sequential(*modules_body)
@@ -120,29 +118,3 @@ class RCAN(nn.Module):
         x = self.add_mean(x)
 
         return x
-
-    def load_state_dict(self, state_dict, strict=False):
-        own_state = self.state_dict()
-        for name, param in state_dict.items():
-            if name in own_state:
-                if isinstance(param, nn.Parameter):
-                    param = param.data
-                try:
-                    own_state[name].copy_(param)
-                except Exception:
-                    if name.find('tail') >= 0:
-                        print('Replace pre-trained upsampler to new one...')
-                    else:
-                        raise RuntimeError('While copying the parameter named {}, '
-                                           'whose dimensions in the model are {} and '
-                                           'whose dimensions in the checkpoint are {}.'
-                                           .format(name, own_state[name].size(), param.size()))
-            elif strict:
-                if name.find('tail') == -1:
-                    raise KeyError('unexpected key "{}" in state_dict'
-                                   .format(name))
-
-        if strict:
-            missing = set(own_state.keys()) - set(state_dict.keys())
-            if len(missing) > 0:
-                raise KeyError('missing keys in state_dict: "{}"'.format(missing))

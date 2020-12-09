@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 
 # this code is from https://github.com/yulunzhang/RCAN
+# A part of the code is changed.
 
 def default_conv(in_channels, out_channels, kernel_size, bias=True):
     return nn.Conv2d(
@@ -39,7 +40,7 @@ class ResBlock(nn.Module):
         bias=True, bn=False, act=nn.ReLU(True), res_scale=1):
 
         super(ResBlock, self).__init__()
-        m = []
+        m = list()
         for i in range(2):
             m.append(conv(n_feat, n_feat, kernel_size, bias=bias))
             if bn: m.append(nn.BatchNorm2d(n_feat))
@@ -57,7 +58,7 @@ class ResBlock(nn.Module):
 class Upsampler(nn.Sequential):
     def __init__(self, conv, scale, n_feat, bn=False, act=False, bias=True):
 
-        m = []
+        m = list()
         if (scale & (scale - 1)) == 0:    # Is scale = 2^n?
             for _ in range(int(math.log(scale, 2))):
                 m.append(conv(n_feat, 4 * n_feat, 3, bias))
