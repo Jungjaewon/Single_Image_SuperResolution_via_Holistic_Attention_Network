@@ -7,46 +7,48 @@ from PIL import Image
 
 class DataSet(data.Dataset):
 
-    def __init__(self, config, img_transform_LR, img_transform_HR):
-        self.img_transform_LR = img_transform_LR
-        self.img_transform_HR = img_transform_HR
-        self.img_dir = config['TRAINING_CONFIG']['IMG_DIR']
+    def __init__(self, config, img_transform):
+        self.img_transform = img_transform
+        self.hr_dir = config['TRAINING_CONFIG']['HR_IMG_DIR']
+        self.lr_dir = config['TRAINING_CONFIG']['LR_IMG_DIR']
+        self.up_scale = config['MODEL_CONFIG']['UP_SCALE']
+        self.data_list = list(range(1, 801))
 
-        self.LR_data_list = glob.glob(osp.join(config['TRAINING_CONFIG']['LR_IMG_DIR'], '*.png'))
-        self.HR_data_list = glob.glob(osp.join(config['TRAINING_CONFIG']['HR_IMG_DIR'], '*.png'))
-        #random.seed(config['TRAINING_CONFIG']['CPU_SEED'])
+        if 'mild' in self.lr_dir:
+            self.post_fix_lr = 'x{}m.png'.format(self.up_scale)
+        else:
+            self.post_fix_lr = 'x{}.png'.format(self.up_scale)
 
     def __getitem__(self, index):
-        hr_image = Image.open(random.choice(self.HR_data_list)).convert('RGB')
-        lr_image = Image.open(random.choice(self.LR_data_list)).convert('RGB')
-        return self.img_transform_LR(lr_image), self.img_transform_HR(hr_image)
+        select_num = str(self.data_list[index]).zfill(4)
+
+        lr_image = Image.open(osp.join(self.lr_dir, '{}{}'.format(select_num, self.post_fix_lr)))
+        hr_image = Image.open(osp.join(self.hr_dir, '{}.png'.format(select_num)))
+
+        return self.img_transform(lr_image), self.img_transform(hr_image)
 
     def __len__(self):
         """Return the number of images."""
-        return max(len(self.LR_data_list), len(self.HR_data_list))
+        return len(self.data_list)
 
+def my_collate(batch):
+    lr_image = [item[0] for item in batch]
+    hr_image = [item[1] for item in batch]
+    return [lr_image, hr_image]
 
 def get_loader(config):
 
-    img_transform_LR = list()
-    img_transform_HR = list()
-    lr_img_size = config['MODEL_CONFIG']['LR_IMG_SIZE']
-    hr_img_size = config['MODEL_CONFIG']['HR_IMG_SIZE']
+    img_transform = list()
 
-    img_transform_LR .append(T.Resize((lr_img_size, lr_img_size)))
-    img_transform_LR .append(T.ToTensor())
-    img_transform_LR .append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
-    img_transform_LR = T.Compose(img_transform_LR)
+    img_transform .append(T.ToTensor())
+    img_transform .append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
+    img_transform = T.Compose(img_transform)
 
-    img_transform_HR.append(T.Resize((hr_img_size, hr_img_size)))
-    img_transform_HR.append(T.ToTensor())
-    img_transform_HR.append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
-    img_transform_HR = T.Compose(img_transform_LR)
-
-    dataset = DataSet(config, img_transform_LR, img_transform_HR)
+    dataset = DataSet(config, img_transform)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=config['TRAINING_CONFIG']['BATCH_SIZE'],
                                   shuffle=(config['TRAINING_CONFIG']['MODE'] == 'train'),
                                   num_workers=config['TRAINING_CONFIG']['NUM_WORKER'],
+                                  collate_fn=my_collate,
                                   drop_last=True)
     return data_loader

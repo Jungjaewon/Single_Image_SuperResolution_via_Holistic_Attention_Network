@@ -1,122 +1,148 @@
+import common
+
 import torch.nn as nn
-import torch
-import math
-from block import ConvBlock
 
 
-class HR_Discriminator128(nn.Module):
-    """Discriminator network with PatchGAN.
-    W = (W - F + 2P) /S + 1"""
+def make_model(args, parent=False):
+    return RCAN(args)
 
-    def __init__(self, spec_norm=True, LR=0.02):
-        super(HR_Discriminator128, self).__init__()
-        self.main = list()
-        self.main.append(ConvBlock(3, 16, spec_norm, stride=2, LR=LR)) # 128 -> 64
-        self.main.append(ConvBlock(16, 32, spec_norm, stride=2, LR=LR))  # 64 -> 32
-        self.main.append(ConvBlock(32, 64, spec_norm, stride=2, LR=LR))  # 32 -> 16
-        self.main.append(nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1))
-        self.main = nn.Sequential(*self.main)
+# this code is from https://github.com/yulunzhang/RCAN
 
-    def forward(self, x):
-        return self.main(x)
-
-class HR_Discriminator64(nn.Module):
-    """Discriminator network with PatchGAN.
-    W = (W - F + 2P) /S + 1"""
-
-    def __init__(self, spec_norm=True, LR=0.02):
-        super(HR_Discriminator64, self).__init__()
-        self.main = list()
-        self.main.append(ConvBlock(3, 16, spec_norm, stride=2, LR=LR)) # 64 -> 32
-        self.main.append(ConvBlock(16, 32, spec_norm, stride=2, LR=LR))  # 32 -> 16
-        self.main.append(ConvBlock(32, 64, spec_norm, stride=2, LR=LR))  # 16 -> 8
-        self.main.append(nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1))
-        self.main = nn.Sequential(*self.main)
+## Channel Attention (CA) Layer
+class CALayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(CALayer, self).__init__()
+        # global average pooling: feature --> point
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        # feature channel downscale and upscale --> channel weight
+        self.conv_du = nn.Sequential(
+            nn.Conv2d(channel, channel // reduction, 1, padding=0, bias=True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channel // reduction, channel, 1, padding=0, bias=True),
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
-        return self.main(x)
-
-class LR_Discriminator32(nn.Module):
-    """Discriminator network with PatchGAN.
-    W = (W - F + 2P) /S + 1"""
-
-    def __init__(self, spec_norm=True, LR=0.02):
-        super(LR_Discriminator32, self).__init__()
-        self.main = list()
-        self.main.append(ConvBlock(3, 16, spec_norm, stride=2, LR=LR)) # 32 -> 16
-        self.main.append(ConvBlock(16, 32, spec_norm, stride=2, LR=LR)) # 16 -> 8
-        self.main.append(ConvBlock(32, 64, spec_norm, stride=2, LR=LR)) # 8 -> 4
-        self.main.append(nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1))
-        self.main = nn.Sequential(*self.main)
-
-    def forward(self, x):
-        return self.main(x)
+        y = self.avg_pool(x)
+        y = self.conv_du(y)
+        return x * y
 
 
-class DSN64(nn.Module):
+## Residual Channel Attention Block (RCAB)
+class RCAB(nn.Module):
+    def __init__(
+            self, conv, n_feat, kernel_size, reduction,
+            bias=True, bn=False, act=nn.ReLU(True), res_scale=1):
 
-    def __init__(self, spec_norm=False, LR=0.02, inner_channel=32):
-        super(DSN64, self).__init__()
-        self.main = list()
-
-        self.first_conv = nn.Conv2d(3, inner_channel, kernel_size=3, stride=1, padding=1)
-        self.down = ConvBlock(inner_channel, inner_channel, spec_norm, stride=2, LR=LR)
-        self.main.append(self.first_conv)
-        self.main.append(self.down)
-        for _ in range(5):
-            self.main.append(ConvBlock(inner_channel, inner_channel, spec_norm, stride=1, LR=LR))
-        self.tanh = nn.Tanh()
-        self.last_conv = nn.Conv2d(inner_channel, 3, kernel_size=3, stride=1, padding=1)
-        self.main.append(self.last_conv)
-        self.main.append(self.tanh)
-        self.main = nn.Sequential(*self.main)
-    def forward(self, x):
-        return self.main(x)
-
-
-class DSN128(nn.Module):
-
-    def __init__(self, spec_norm=False, LR=0.02, inner_channel=64):
-        super(DSN128, self).__init__()
-        self.main = list()
-
-        self.first_conv = nn.Conv2d(3, inner_channel, kernel_size=3, stride=1, padding=1)
-        self.down1 = ConvBlock(inner_channel, inner_channel, spec_norm, stride=2, LR=LR)
-        self.main.append(self.first_conv)
-        self.main.append(self.down1)
-        for _ in range(5):
-            self.main.append(ConvBlock(inner_channel, inner_channel, spec_norm, stride=1, LR=LR))
-
-        self.down2 = ConvBlock(inner_channel, inner_channel, spec_norm, stride=2, LR=LR)
-        self.main.append(self.down2)
-
-        for _ in range(5):
-            self.main.append(ConvBlock(inner_channel, inner_channel, spec_norm, stride=1, LR=LR))
-
-        self.tanh = nn.Tanh()
-        self.last_conv = nn.Conv2d(inner_channel, 3, kernel_size=3, stride=1, padding=1)
-        self.main.append(self.last_conv)
-        self.main.append(self.tanh)
-        self.main = nn.Sequential(*self.main)
+        super(RCAB, self).__init__()
+        modules_body = []
+        for i in range(2):
+            modules_body.append(conv(n_feat, n_feat, kernel_size, bias=bias))
+            if bn: modules_body.append(nn.BatchNorm2d(n_feat))
+            if i == 0: modules_body.append(act)
+        modules_body.append(CALayer(n_feat, reduction))
+        self.body = nn.Sequential(*modules_body)
+        self.res_scale = res_scale
 
     def forward(self, x):
-        return self.main(x)
+        res = self.body(x)
+        # res = self.body(x).mul(self.res_scale)
+        res += x
+        return res
 
 
-class SRN(nn.Module):
-
-    def __init__(self, spec_norm=False, LR=0.02, inner_channel=64, up_scale=2):
-        super(SRN, self).__init__()
-        assert up_scale in [2, 4]
-        self.up = nn.Upsample(scale_factor=up_scale, mode='bicubic')
-        self.main = list()
-        self.main.append(nn.Conv2d(3, inner_channel, kernel_size=3, stride=1, padding=1))
-        for _ in range(10):
-            self.main.append(ConvBlock(inner_channel, inner_channel, spec_norm, stride=1, LR=LR))
-        self.main.append(nn.Conv2d(inner_channel, inner_channel * up_scale * up_scale, kernel_size=3, stride=1, padding=1))
-        self.main.append(nn.PixelShuffle(up_scale))
-        self.main.append(nn.Tanh())
-        self.main = nn.Sequential(*self.main)
+## Residual Group (RG)
+class ResidualGroup(nn.Module):
+    def __init__(self, conv, n_feat, kernel_size, reduction, act, res_scale, n_resblocks):
+        super(ResidualGroup, self).__init__()
+        modules_body = []
+        modules_body = [
+            RCAB(
+                conv, n_feat, kernel_size, reduction, bias=True, bn=False, act=nn.ReLU(True), res_scale=1) \
+            for _ in range(n_resblocks)]
+        modules_body.append(conv(n_feat, n_feat, kernel_size))
+        self.body = nn.Sequential(*modules_body)
 
     def forward(self, x):
-        return self.main(x) + self.up(x)
+        res = self.body(x)
+        res += x
+        return res
+
+
+## Residual Channel Attention Network (RCAN)
+class RCAN(nn.Module):
+    def __init__(self, args, conv=common.default_conv):
+        super(RCAN, self).__init__()
+
+        n_resgroups = args.n_resgroups
+        n_resblocks = args.n_resblocks
+        n_feats = args.n_feats
+        kernel_size = 3
+        reduction = args.reduction
+        scale = args.scale[0]
+        act = nn.ReLU(True)
+
+        # RGB mean for DIV2K
+        rgb_mean = (0.4488, 0.4371, 0.4040)
+        rgb_std = (1.0, 1.0, 1.0)
+        self.sub_mean = common.MeanShift(args.rgb_range, rgb_mean, rgb_std)
+
+        # define head module
+        modules_head = [conv(args.n_colors, n_feats, kernel_size)]
+
+        # define body module
+        modules_body = [
+            ResidualGroup(
+                conv, n_feats, kernel_size, reduction, act=act, res_scale=args.res_scale, n_resblocks=n_resblocks) \
+            for _ in range(n_resgroups)]
+
+        modules_body.append(conv(n_feats, n_feats, kernel_size))
+
+        # define tail module
+        modules_tail = [
+            common.Upsampler(conv, scale, n_feats, act=False),
+            conv(n_feats, args.n_colors, kernel_size)]
+
+        self.add_mean = common.MeanShift(args.rgb_range, rgb_mean, rgb_std, 1)
+
+        self.head = nn.Sequential(*modules_head)
+        self.body = nn.Sequential(*modules_body)
+        self.tail = nn.Sequential(*modules_tail)
+
+    def forward(self, x):
+        x = self.sub_mean(x)
+        x = self.head(x)
+
+        res = self.body(x)
+        res += x
+
+        x = self.tail(res)
+        x = self.add_mean(x)
+
+        return x
+
+    def load_state_dict(self, state_dict, strict=False):
+        own_state = self.state_dict()
+        for name, param in state_dict.items():
+            if name in own_state:
+                if isinstance(param, nn.Parameter):
+                    param = param.data
+                try:
+                    own_state[name].copy_(param)
+                except Exception:
+                    if name.find('tail') >= 0:
+                        print('Replace pre-trained upsampler to new one...')
+                    else:
+                        raise RuntimeError('While copying the parameter named {}, '
+                                           'whose dimensions in the model are {} and '
+                                           'whose dimensions in the checkpoint are {}.'
+                                           .format(name, own_state[name].size(), param.size()))
+            elif strict:
+                if name.find('tail') == -1:
+                    raise KeyError('unexpected key "{}" in state_dict'
+                                   .format(name))
+
+        if strict:
+            missing = set(own_state.keys()) - set(state_dict.keys())
+            if len(missing) > 0:
+                raise KeyError('missing keys in state_dict: "{}"'.format(missing))
