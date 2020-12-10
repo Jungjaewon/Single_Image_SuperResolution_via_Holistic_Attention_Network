@@ -7,6 +7,7 @@ import os.path as osp
 from PIL import Image
 from torchvision import transforms as T
 from torchvision.utils import save_image
+from model import RCAN
 
 
 class Solver(object):
@@ -16,12 +17,6 @@ class Solver(object):
         self.data_loader = data_loader
 
         self.up_scale = config['MODEL_CONFIG']['UP_SCALE']
-        self.target_img = Image.open(config['MODEL_CONFIG']['TARGET_IMG']).convert('RGB')
-        target_transform = list()
-        target_transform.append(T.ToTensor())
-        target_transform.append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
-        target_transform = T.Compose(target_transform)
-        self.target_tensor = target_transform(self.target_img)
 
         assert self.up_scale in [2, 4]
 
@@ -43,10 +38,12 @@ class Solver(object):
         self.optim = config['TRAINING_CONFIG']['OPTIM']
         self.beta1 = config['TRAINING_CONFIG']['BETA1']
         self.beta2 = config['TRAINING_CONFIG']['BETA2']
+
         if self.gan_loss == 'lsgan':
             self.adversarial_loss = torch.nn.MSELoss()
         elif self.gan_loss =='vanilla':
             self.adversarial_loss = torch.nn.BCELoss()
+
         self.mse_loss = nn.MSELoss()
         self.l1_loss = torch.nn.L1Loss()
 
@@ -76,34 +73,15 @@ class Solver(object):
         self.lr_decay_step  = config['TRAINING_CONFIG']['LR_DECAY_STEP']
         self.decay_start  = config['TRAINING_CONFIG']['DECAY_START']
 
-        self.build_model()
+        self.build_model(config)
 
         if self.use_tensorboard == 'True':
             self.build_tensorboard()
 
-    def build_model(self):
-
-        if self.up_scale == 2:
-            self.D_L = LR_Discriminator32(spec_norm=self.d_spec, LR=0.02)
-            self.D_H = HR_Discriminator64(spec_norm=self.d_spec, LR=0.02)
-            self.G_L = DSN64(spec_norm=False, LR=0.02, inner_channel=32)
-            self.G_H = SRN(spec_norm=False, LR=0.02, inner_channel=32, up_scale=self.up_scale)
-
-        elif self.up_scale == 4:
-            self.D_L = LR_Discriminator32(spec_norm=self.d_spec, LR=0.02)
-            self.D_H = HR_Discriminator128(spec_norm=self.d_spec, LR=0.02)
-            self.G_L = DSN128(spec_norm=False, LR=0.02, inner_channel=64)
-            self.G_H = SRN(spec_norm=False, LR=0.02, inner_channel=64, up_scale=self.up_scale)
-
-        self.g_l_optimizer = torch.optim.Adam(self.G_L.parameters(), self.g_lr, (self.beta1, self.beta2))
-        self.g_h_optimizer = torch.optim.Adam(self.G_H.parameters(), self.g_lr, (self.beta1, self.beta2))
-        self.d_l_optimizer = torch.optim.Adam(self.D_L.parameters(), self.d_lr, (self.beta1, self.beta2))
-        self.d_h_optimizer = torch.optim.Adam(self.D_H.parameters(), self.d_lr, (self.beta1, self.beta2))
-
-        self.print_network(self.G_L, 'G_L')
-        self.print_network(self.G_H, 'G_H')
-        self.print_network(self.D_L, 'D_L')
-        self.print_network(self.D_H, 'D_H')
+    def build_model(self, config):
+        self.G = RCAN(config).to(self.gpu)
+        self.optimizer = torch.optim.Adam(self.G.parameters(), self.g_lr, (self.beta1, self.beta2))
+        self.print_network(self.G, 'RCAN')
 
     def print_network(self, model, name):
         """Print out the network information."""
@@ -126,21 +104,11 @@ class Solver(object):
 
     def update_lr(self, g_lr, d_lr):
         """Decay learning rates of the generator and discriminator."""
-        for param_group in self.g_l_optimizer.param_groups:
+        for param_group in self.optimizer.param_groups:
             param_group['lr'] = g_lr
-        for param_group in self.g_h_optimizer.param_groups:
-            param_group['lr'] = g_lr
-        for param_group in self.d_l_optimizer.param_groups:
-            param_group['lr'] = d_lr
-        for param_group in self.d_h_optimizer.param_groups:
-            param_group['lr'] = d_lr
-
     def reset_grad(self):
         """Reset the gradient buffers."""
-        self.g_l_optimizer.zero_grad()
-        self.g_h_optimizer.zero_grad()
-        self.d_l_optimizer.zero_grad()
-        self.d_h_optimizer.zero_grad()
+        self.optimizer.zero_grad()
 
     def denorm(self, x):
         """Convert the range from [-1, 1] to [0, 1]."""
@@ -180,30 +148,10 @@ class Solver(object):
 
     def restore_model(self, epoch):
 
-        D_L_path = osp.join(self.model_dir, '*{}-D_L.ckpt'.format(epoch))
-        D_H_path = osp.join(self.model_dir, '*{}-D_H.ckpt'.format(epoch))
-        G_L_path = os.path.join(self.model_dir, '*{}-G_L.ckpt'.format(epoch))
-        G_H_path = os.path.join(self.model_dir, '*{}-G_H.ckpt'.format(epoch))
-
-        self.G_L.load_state_dict(self.get_state_dict(G_L_path))
-        self.G_H.load_state_dict(self.get_state_dict(G_H_path))
-        self.D_L.load_state_dict(self.get_state_dict(D_L_path))
-        self.D_H.load_state_dict(self.get_state_dict(D_H_path))
+        G_path = osp.join(self.model_dir, '*{}-G.ckpt'.format(epoch))
+        self.G.load_state_dict(self.get_state_dict(G_path))
 
         return epoch
-
-    def calculate_d_loss(self, G, D, input_image, gt_image):
-        fake_hr_image = G(input_image)
-        real_score = D(gt_image)
-        fake_score = D(fake_hr_image.detach())
-        d_loss_real = -torch.mean(real_score)
-        d_loss_fake = torch.mean(fake_score)
-        alpha = torch.rand(gt_image.size(0), 1, 1, 1).to(self.gpu)
-        x_hat = (alpha * gt_image.data + (1 - alpha) * fake_hr_image.data).requires_grad_(True)
-        out_src = self.D_H(x_hat)
-        d_loss_gp = self.gradient_penalty(out_src, x_hat)
-        d_loss = self.lambda_d_real * d_loss_real + self.lambda_d_fake * d_loss_fake + self.lambda_d_gp * d_loss_gp
-        return d_loss
 
     def train(self):
 
@@ -213,7 +161,9 @@ class Solver(object):
         print('iterations : ', iterations)
         # Fetch fixed inputs for debugging.
         data_iter = iter(data_loader)
-        #fixed_lr_image, fixed_hr_image = next(data_iter)
+        fixed_lr_image, fixed_hr_image = next(data_iter)
+        fixed_lr_image = fixed_lr_image.to(self.gpu)
+        fixed_hr_image = fixed_hr_image.to(self.gpu)
 
         # Learning rate cache for decaying.
         g_lr = self.g_lr
@@ -234,35 +184,17 @@ class Solver(object):
                 hr_image = hr_image.to(self.gpu)
 
                 loss_dict = dict()
-                if (i + 1) % self.d_critic == 0:
 
-                    d_h_loss = self.calculate_d_loss(self.G_H, self.D_H, input_image=lr_image, gt_image=hr_image)
-                    d_l_loss = self.calculate_d_loss(self.G_L, self.D_L, input_image=hr_image, gt_image=lr_image)
+                fake_image = self.G(lr_image)
 
-                    # Backward and optimize.
-                    self.reset_grad()
-                    d_h_loss.backward()
-                    d_l_loss.backward()
-                    self.d_h_optimizer.step()
-                    self.d_l_optimizer.step()
+                loss = self.l1_loss(fake_image, hr_image)
 
-                    # Logging.
-                    loss_dict['D/d_h_loss'] = d_h_loss.item()
-                    loss_dict['D/d_l_loss'] = d_l_loss.item()
+                self.reset_grad()
+                loss.backward()
+                self.optimizer.step()
 
-                if (i + 1) % self.g_critic == 0:
-                    g_srn_cycle = torch.mean(self.D_L(self.G_L(self.G_H(lr_image)))) -torch.mean(self.D_L(lr_image)) + self.l1_loss(self.G_L(self.G_H(lr_image)), lr_image)
-                    g_dsn_cycle = torch.mean(self.D_H(self.G_H(self.G_L(lr_image)))) -torch.mean(self.D_H(hr_image)) + self.l1_loss(self.G_H(self.G_L(hr_image)), hr_image)
-
-                    self.reset_grad()
-                    g_srn_cycle.backward()
-                    g_dsn_cycle.backward()
-                    self.g_h_optimizer.step()
-                    self.g_l_optimizer.step()
-
-                    # Logging.
-                    loss_dict['G/g_dsn_cycle'] = g_dsn_cycle.item()
-                    loss_dict['G/g_srn_cycle'] = g_srn_cycle.item()
+                # Logging.
+                loss_dict['G/loss'] = loss.item()
 
                 if (i + 1) % self.log_step == 0:
                     et = time.time() - start_time
@@ -273,21 +205,19 @@ class Solver(object):
                     print(log)
 
             if (e + 1) % self.sample_step == 0:
-                fake_hr = self.G_H(self.target_tensor)
-                sample_path = os.path.join(self.sample_dir, '{}-images.jpg'.format(e + 1))
-                save_image(self.denorm(fake_hr.data.cpu()), sample_path, nrow=1, padding=0)
+                for b in range(self.batch_size):
+                    fake_hr = self.G(fixed_lr_image[b].unsquezee(0))
+                    image_report = list()
+                    image_report.append(fake_hr)
+                    image_report.append(fixed_hr_image[b].unsquezee(0))
+                    x_concat = torch.cat(image_report, dim=3)
+                    sample_path = os.path.join(self.sample_dir, '{}-images.jpg'.format(e + 1))
+                    save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
                 print('Saved real and fake images into {}...'.format(self.sample_dir))
             # Save model checkpoints.
             if (e + 1) % self.save_step == 0 and (e + 1) >= self.save_start:
-                D_L_path = osp.join(self.model_dir, '*{}-D_L.ckpt'.format(e + 1))
-                D_H_path = osp.join(self.model_dir, '*{}-D_H.ckpt'.format(e + 1))
-                G_L_path = os.path.join(self.model_dir, '*{}-G_L.ckpt'.format(e + 1))
-                G_H_path = os.path.join(self.model_dir, '*{}-G_H.ckpt'.format(e + 1))
-
-                torch.save(self.G_L.state_dict(), G_L_path)
-                torch.save(self.G_H.state_dict(), G_H_path)
-                torch.save(self.D_L.state_dict(), D_L_path)
-                torch.save(self.D_H.state_dict(), D_H_path)
+                G_path = osp.join(self.model_dir, '*{}-G.ckpt'.format(e + 1))
+                torch.save(self.G.state_dict(), G_path)
                 print('Saved model checkpoints into {}...'.format(self.model_dir))
 
             # decay learning rate

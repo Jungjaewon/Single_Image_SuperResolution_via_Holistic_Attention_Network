@@ -23,10 +23,13 @@ class Channel_Spatial_Attention_Module(nn.Module):
 
 
 class Layer_Attention_Module(nn.Module):
-    def __init__(self):
+    def __init__(self, config):
         super(Layer_Attention_Module, self).__init__()
         self.softmax = nn.Softmax(dim=2)
         self.scale = nn.Parameter(torch.zeros(1))
+        self.n = config['MODEL_CONFIG']['N_RESGROUPS']
+        self.c = config['MODEL_CONFIG']['N_FEATURES']
+        self.conv = nn.Conv2d(self.n * self.c, self.c, kernel_size=3, padding=1)
 
     def forward(self, feature_group):
         b,n,c,h,w = feature_group.size()
@@ -41,7 +44,7 @@ class Layer_Attention_Module(nn.Module):
 
         attention_feature = self.scale * attention_feature + feature_group
         b, n, c, h, w = attention_feature.size()
-        return attention_feature.view(b, n * c, h, w)
+        return self.conv(attention_feature.view(b, n * c, h, w))
 
 
 
@@ -120,7 +123,7 @@ class RCAN(nn.Module):
         # RGB mean for DIV2K
         rgb_mean = (0.4488, 0.4371, 0.4040)
         rgb_std = (1.0, 1.0, 1.0)
-        self.sub_mean = common.MeanShift(config['MODEL_CONFIG']['RGB_RANGE'], rgb_mean, rgb_std)
+        #self.sub_mean = common.MeanShift(config['MODEL_CONFIG']['RGB_RANGE'], rgb_mean, rgb_std)
 
         # define head module
         modules_head = [conv(config['MODEL_CONFIG']['N_COLORS'], n_feats, kernel_size)]
@@ -138,16 +141,16 @@ class RCAN(nn.Module):
             common.Upsampler(conv, scale, n_feats, act=False),
             conv(n_feats, config['MODEL_CONFIG']['N_COLORS'], kernel_size)]
 
-        self.add_mean = common.MeanShift(config['MODEL_CONFIG']['RGB_RANGE'], rgb_mean, rgb_std, 1)
+        #self.add_mean = common.MeanShift(config['MODEL_CONFIG']['RGB_RANGE'], rgb_mean, rgb_std, 1)
 
         self.head = nn.Sequential(*modules_head)
         self.body = nn.ModuleList(modules_body)
         self.tail = nn.Sequential(*modules_tail)
         self.CSA = Channel_Spatial_Attention_Module()
-        self.LA = Layer_Attention_Module()
+        self.LA = Layer_Attention_Module(config)
 
     def forward(self, x):
-        x = self.sub_mean(x)
+        #x = self.sub_mean(x)
         x = self.head(x)
 
         body_results = list()
@@ -160,6 +163,6 @@ class RCAN(nn.Module):
         feature_CSA = self.CSA(body_results[-1]) # # b, c, h, w
 
         x = self.tail(body_results[0] + feature_CSA + feature_LA)
-        x = self.add_mean(x)
+        #x = self.add_mean(x)
 
         return x
