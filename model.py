@@ -1,9 +1,48 @@
 import common
 
 import torch.nn as nn
+import torch
 
 # this code is from https://github.com/yulunzhang/RCAN
 # A part of the code is changed.
+
+
+class Channel_Spatial_Attention_Module(nn.Module):
+    def __init__(self):
+        super(Channel_Spatial_Attention_Module, self).__init__()
+        self.conv_3d = nn.Conv3d(1, 1, kernel_size=3, padding=1, stride=1)
+        self.sigmoid = nn.Sigmoid()
+        self.scale = nn.Parameter(torch.zeros(1))
+
+    def forward(self, x):
+        n, c, h, w = x.size()
+        x_reshape = x.reshape(n, 1, c, h, w)
+        x_3d = self.sigmoid(self.conv_3d(x_reshape))
+        x_squzzed = x_3d.reshape(n, c, h, w)
+        return (self.scale * x_squzzed) * x + x
+
+
+class Layer_Attention_Module(nn.Module):
+    def __init__(self):
+        super(Layer_Attention_Module, self).__init__()
+        self.softmax = nn.Softmax(dim=2)
+        self.scale = nn.Parameter(torch.zeros(1))
+
+    def forward(self, feature_group):
+        b,n,c,h,w = feature_group.size()
+        feature_group_reshape = feature_group.view(b, n, c * h * w)
+
+        attention_map = torch.bmm(feature_group_reshape, feature_group_reshape.view(b, c * h * w, n))
+        attention_map = self.softmax(attention_map) # N * N
+
+        attention_feature = torch.bmm(attention_map, feature_group_reshape) # N * CHW
+        b, n, chw = attention_feature.size()
+        attention_feature = attention_feature.view(b,n,c,h,w)
+
+        attention_feature = self.scale * attention_feature + feature_group
+        b, n, c, h, w = attention_feature.size()
+        return attention_feature.view(b, n * c, h, w)
+
 
 
 ## Channel Attention (CA) Layer
@@ -33,7 +72,7 @@ class RCAB(nn.Module):
             bias=True, bn=False, act=nn.ReLU(True), res_scale=1):
 
         super(RCAB, self).__init__()
-        modules_body = []
+        modules_body = list()
         for i in range(2):
             modules_body.append(conv(n_feat, n_feat, kernel_size, bias=bias))
             if bn: modules_body.append(nn.BatchNorm2d(n_feat))
@@ -45,15 +84,13 @@ class RCAB(nn.Module):
     def forward(self, x):
         res = self.body(x)
         # res = self.body(x).mul(self.res_scale)
-        res += x
-        return res
+        return res + x
 
 
 ## Residual Group (RG)
 class ResidualGroup(nn.Module):
     def __init__(self, conv, n_feat, kernel_size, reduction, act, res_scale, n_resblocks):
         super(ResidualGroup, self).__init__()
-        modules_body = []
         modules_body = [
             RCAB(
                 conv, n_feat, kernel_size, reduction, bias=True, bn=False, act=nn.ReLU(True), res_scale=1) \
@@ -104,17 +141,25 @@ class RCAN(nn.Module):
         self.add_mean = common.MeanShift(config['MODEL_CONFIG']['RGB_RANGE'], rgb_mean, rgb_std, 1)
 
         self.head = nn.Sequential(*modules_head)
-        self.body = nn.Sequential(*modules_body)
+        self.body = nn.ModuleList(modules_body)
         self.tail = nn.Sequential(*modules_tail)
+        self.CSA = Channel_Spatial_Attention_Module()
+        self.LA = Layer_Attention_Module()
 
     def forward(self, x):
         x = self.sub_mean(x)
         x = self.head(x)
 
-        res = self.body(x)
-        res += x
+        body_results = list()
+        body_results.append(x)
+        for RG in self.body:
+            x = RG(x)
+            body_results.append(x)
 
-        x = self.tail(res)
+        feature_LA = self.LA(torch.stack(body_results[1:-1], dim=1)) # b, n * c, h, w
+        feature_CSA = self.CSA(body_results[-1]) # # b, c, h, w
+
+        x = self.tail(body_results[0] + feature_CSA + feature_LA)
         x = self.add_mean(x)
 
         return x
