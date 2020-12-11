@@ -15,7 +15,7 @@ MODEL_CONFIG:
 TRAINING_CONFIG:
 
   EPOCH: 150
-  BATCH_SIZE: 64
+  BATCH_SIZE: 12
 
   # lr and lambda
   G_LR : 20e-4
@@ -53,8 +53,8 @@ TRAINING_CONFIG:
   D_SPEC : 'True'
 
   # Directory
-  HR_IMG_DIR : 'DIV2K_train_HR'
-  LR_IMG_DIR : 'DIV2K_train_LR_mild'
+  HR_IMG_DIR : '/home/mlm11/sr_dataset/DIV2K_train_HR'
+  LR_IMG_DIR : '/home/mlm11/sr_dataset/DIV2K_train_LR_mild'
   TRAIN_DIR : 'super_resolution_trial'
   LOG_DIR : 'logs'
   SAMPLE_DIR : 'samples'
