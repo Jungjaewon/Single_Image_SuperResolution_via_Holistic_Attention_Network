@@ -4,7 +4,6 @@ import yaml
 
 from solver import Solver
 from torch.backends import cudnn
-from data_loader import get_loader
 
 
 def make_train_directory(config):
@@ -24,6 +23,11 @@ def make_train_directory(config):
 def main(config):
 
     assert config['TRAINING_CONFIG']['MODE'] in ['train', 'test']
+
+    if config['TRAINING_CONFIG']['TRAINING'] == 'patch_based':
+        from data_loader import get_loader
+    else:
+        from data_loader_patch import get_loader
 
     cudnn.benchmark = True
     solver = Solver(config, get_loader(config))

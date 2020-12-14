@@ -1,7 +1,5 @@
 
 MODEL_CONFIG:
-  LR_IMG_SIZE: 32
-  HR_IMG_SIZE: 64
   UP_SCALE: 4
   N_RESGROUPS: 10
   N_RESBLOCKS : 20
@@ -13,9 +11,10 @@ MODEL_CONFIG:
 
 
 TRAINING_CONFIG:
-
+  TRAINING : 'image_based' # 'image_based' 'patch_based'
   EPOCH: 150
-  BATCH_SIZE: 12
+  BATCH_SIZE: 16
+  PATCH_SIZE : 128
 
   # lr and lambda
   G_LR : 20e-4

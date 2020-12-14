@@ -41,7 +41,7 @@ class Solver(object):
 
         if self.gan_loss == 'lsgan':
             self.adversarial_loss = torch.nn.MSELoss()
-        elif self.gan_loss =='vanilla':
+        elif self.gan_loss == 'vanilla':
             self.adversarial_loss = torch.nn.BCELoss()
 
         self.mse_loss = nn.MSELoss()
@@ -130,7 +130,6 @@ class Solver(object):
         return torch.mean((dydx_l2norm - 1) ** 2)
 
     def get_state_dict(self, path):
-
         if path.startswith("module-"):
             state_dict = torch.load(path, map_location=lambda storage, loc: storage)
             # state_dict = torch.load(model_path, map_location=self.device)
@@ -147,14 +146,11 @@ class Solver(object):
             return torch.load(path, map_location=lambda storage, loc: storage)
 
     def restore_model(self, epoch):
-
         G_path = osp.join(self.model_dir, '*{}-G.ckpt'.format(epoch))
         self.G.load_state_dict(self.get_state_dict(G_path))
-
         return epoch
 
     def train(self):
-
         # Set data loader.
         data_loader = self.data_loader
         iterations = len(self.data_loader)
@@ -205,14 +201,13 @@ class Solver(object):
                     print(log)
 
             if (e + 1) % self.sample_step == 0:
-                for b in range(self.batch_size):
-                    fake_hr = self.G(fixed_lr_image[b].unsquezee(0))
-                    image_report = list()
-                    image_report.append(fake_hr)
-                    image_report.append(fixed_hr_image[b].unsquezee(0))
-                    x_concat = torch.cat(image_report, dim=3)
-                    sample_path = os.path.join(self.sample_dir, '{}-images.jpg'.format(e + 1))
-                    save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
+                fake_hr = self.G(fixed_lr_image)
+                image_report = list()
+                image_report.append(fake_hr)
+                image_report.append(fixed_hr_image)
+                x_concat = torch.cat(image_report, dim=3)
+                sample_path = os.path.join(self.sample_dir, '{}-images.jpg'.format(e + 1))
+                save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
                 print('Saved real and fake images into {}...'.format(self.sample_dir))
             # Save model checkpoints.
             if (e + 1) % self.save_step == 0 and (e + 1) >= self.save_start:
