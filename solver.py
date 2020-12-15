@@ -17,6 +17,7 @@ class Solver(object):
         self.data_loader = data_loader
 
         self.up_scale = config['MODEL_CONFIG']['UP_SCALE']
+        self.training_mode = config['TRAINING_CONFIG']['TRAINING']
 
         assert self.up_scale in [2, 4]
 

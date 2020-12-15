@@ -14,7 +14,7 @@ class DataSet(data.Dataset):
         self.hr_dir = config['TRAINING_CONFIG']['HR_IMG_DIR']
         self.lr_dir = config['TRAINING_CONFIG']['LR_IMG_DIR']
         self.up_scale = config['MODEL_CONFIG']['UP_SCALE']
-        self.patch_size = config['MODEL_CONFIG']['PATCH_SIZE']
+        self.patch_size = config['TRAINING_CONFIG']['PATCH_SIZE']
         self.data_list = list(range(1, 801))
         self.h_flip = T.RandomHorizontalFlip(p=1.0)
         self.v_flip = T.RandomVerticalFlip(p=1.0)
@@ -63,7 +63,7 @@ class DataSet(data.Dataset):
     def np2tensor(self, img):
         np_transpose = np.ascontiguousarray(img.transpose((2, 0, 1)))
         tensor = torch.from_numpy(np_transpose).float()
-        #tensor.mul_(rgb_range / 255)
+        tensor.mul_(1 / 255.0)
 
         return tensor
 
@@ -71,7 +71,7 @@ def get_loader(config):
 
     img_transform = list()
 
-    img_transform.append(T.ToTensor())
+    #img_transform.append(T.ToTensor())
     img_transform.append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
     img_transform = T.Compose(img_transform)
 

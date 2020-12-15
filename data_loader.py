@@ -54,7 +54,7 @@ def get_loader(config):
 
     dataset = DataSet(config, img_transform)
     data_loader = data.DataLoader(dataset=dataset,
-                                  batch_size=config['TRAINING_CONFIG']['BATCH_SIZE'],
+                                  batch_size=1,
                                   shuffle=(config['TRAINING_CONFIG']['MODE'] == 'train'),
                                   num_workers=config['TRAINING_CONFIG']['NUM_WORKER'],
                                   drop_last=True)

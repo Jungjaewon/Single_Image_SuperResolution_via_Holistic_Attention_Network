@@ -25,9 +25,11 @@ def main(config):
     assert config['TRAINING_CONFIG']['MODE'] in ['train', 'test']
 
     if config['TRAINING_CONFIG']['TRAINING'] == 'patch_based':
-        from data_loader import get_loader
-    else:
+        print('patch_based training')
         from data_loader_patch import get_loader
+    else:
+        print('image_based training')
+        from data_loader import get_loader
 
     cudnn.benchmark = True
     solver = Solver(config, get_loader(config))
@@ -41,7 +43,7 @@ def main(config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='config.yml', help='specifies config yaml file')
+    parser.add_argument('--config', type=str, default='config_patch.yml', help='specifies config yaml file')
 
     params = parser.parse_args()
 
