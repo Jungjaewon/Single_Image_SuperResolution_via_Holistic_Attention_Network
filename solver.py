@@ -56,7 +56,16 @@ class Solver(object):
         self.g_spec = config['TRAINING_CONFIG']['G_SPEC'] == 'True'
         self.d_spec = config['TRAINING_CONFIG']['D_SPEC'] == 'True'
 
-        self.gpu = config['TRAINING_CONFIG']['GPU']
+        if config['TRAINING_CONFIG']['GPU'] != '':
+            self.gpu_list = [int(gpu) for gpu in config['TRAINING_CONFIG']['GPU'].split(',')]
+            self.num_gpu = len(self.gpu_list)
+            if len(self.gpu_list):
+                self.gpu = torch.device('cuda:' + str(self.gpu_list[0]))
+        else:
+            self.num_gpu = 0
+            self.gpu = None
+            self.gpu_list = None
+
         self.use_tensorboard = config['TRAINING_CONFIG']['USE_TENSORBOARD']
 
         # Directory
@@ -80,7 +89,14 @@ class Solver(object):
             self.build_tensorboard()
 
     def build_model(self, config):
-        self.G = RCAN(config).to(self.gpu)
+
+        if self.num_gpu > 1:
+            self.G = nn.DataParallel(self.G, device_ids=self.gpu_list).to(self.gpu)
+        elif self.num_gpu == 1:
+            self.G = RCAN(config).to(self.gpu)
+        else:
+            self.G = RCAN(config)
+
         self.optimizer = torch.optim.Adam(self.G.parameters(), self.g_lr, (self.beta1, self.beta2))
         self.print_network(self.G, 'RCAN')
 
@@ -209,10 +225,18 @@ class Solver(object):
                 x_concat = torch.cat(image_report, dim=3)
                 sample_path = os.path.join(self.sample_dir, '{}-images.jpg'.format(e + 1))
                 save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
+
+                if self.training_mode == 'image_based':
+                    image_report = list()
+                    image_report.append(fake_hr)
+                    x_concat = torch.cat(image_report, dim=3)
+                    sample_path = os.path.join(self.sample_dir, '{}-fake_images.jpg'.format(e + 1))
+                    save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
+
                 print('Saved real and fake images into {}...'.format(self.sample_dir))
             # Save model checkpoints.
             if (e + 1) % self.save_step == 0 and (e + 1) >= self.save_start:
-                G_path = osp.join(self.model_dir, '*{}-G.ckpt'.format(e + 1))
+                G_path = osp.join(self.model_dir, '{}-G.ckpt'.format(e + 1))
                 torch.save(self.G.state_dict(), G_path)
                 print('Saved model checkpoints into {}...'.format(self.model_dir))
 
