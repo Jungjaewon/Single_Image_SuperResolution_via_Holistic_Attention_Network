@@ -27,7 +27,7 @@ Not implmented yet
 ![normalresult1](img/image_results.png)
 
 ## Comments
- In this implementation, a light model is used; 5 residual_groups and residual blocks. The input of high resolution images generated from the model are half size. Hyper-parameter tuning is need to get better results. If you have questions, Please leave an issue. 
+ In this implementation, a light model is used; 5 residual_groups and residual blocks. The input of high resolution images generated from the model are half size. Hyper-parameter tuning is need to get better results. If you have questions, Please leave an issue. Image based training is impossible in terms of memory. 
 ## Reference
 1. Dataset : https://data.vision.ee.ethz.ch/cvl/DIV2K/
 2. RCAN : https://github.com/yulunzhang/RCAN
