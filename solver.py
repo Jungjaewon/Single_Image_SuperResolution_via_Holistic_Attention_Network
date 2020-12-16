@@ -56,15 +56,26 @@ class Solver(object):
         self.g_spec = config['TRAINING_CONFIG']['G_SPEC'] == 'True'
         self.d_spec = config['TRAINING_CONFIG']['D_SPEC'] == 'True'
 
+        self.target_img = Image.open(config['MODEL_CONFIG']['TARGET_IMG']).convert('RGB')
+        target_transform = list()
+        target_transform.append(T.ToTensor())
+        target_transform.append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
+        target_transform = T.Compose(target_transform)
+        self.target_tensor = target_transform(self.target_img).unsqueeze(0)
+
         if config['TRAINING_CONFIG']['GPU'] != '':
             self.gpu_list = [int(gpu) for gpu in config['TRAINING_CONFIG']['GPU'].split(',')]
             self.num_gpu = len(self.gpu_list)
             if len(self.gpu_list):
                 self.gpu = torch.device('cuda:' + str(self.gpu_list[0]))
+            self.target_tensor = self.target_tensor.to(self.gpu)
         else:
             self.num_gpu = 0
             self.gpu = None
             self.gpu_list = None
+
+
+
 
         self.use_tensorboard = config['TRAINING_CONFIG']['USE_TENSORBOARD']
 
@@ -226,12 +237,18 @@ class Solver(object):
                 sample_path = os.path.join(self.sample_dir, '{}-images.jpg'.format(e + 1))
                 save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
 
+                fake_hr = self.G(self.target_tensor)
+                sample_path = os.path.join(self.sample_dir, '{}-whole-images.jpg'.format(e + 1))
+                save_image(self.denorm(fake_hr.data.cpu()), sample_path, nrow=1, padding=0)
+
+                """
                 if self.training_mode == 'image_based':
                     image_report = list()
                     image_report.append(fake_hr)
                     x_concat = torch.cat(image_report, dim=3)
                     sample_path = os.path.join(self.sample_dir, '{}-fake_images.jpg'.format(e + 1))
                     save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
+                """
 
                 print('Saved real and fake images into {}...'.format(self.sample_dir))
             # Save model checkpoints.

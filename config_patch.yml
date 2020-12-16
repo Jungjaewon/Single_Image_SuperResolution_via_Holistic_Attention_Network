@@ -8,13 +8,14 @@ MODEL_CONFIG:
   RGB_RANGE : 255
   N_COLORS : 3
   RES_SCALE : 1
+  TARGET_IMG: 'sample.png'
 
 
 TRAINING_CONFIG:
   #TRAINING : 'image_based' # 'image_based' 'patch_based'
   TRAINING : 'patch_based' # 'image_based' 'patch_based'
   EPOCH: 150
-  BATCH_SIZE: 8
+  BATCH_SIZE: 4
   PATCH_SIZE : 128
 
   # lr and lambda
@@ -63,7 +64,7 @@ TRAINING_CONFIG:
   MODEL_DIR : 'models'
 
   # GPU
-  GPU: 1
+  GPU: "3"
 
   # Step Size
 
