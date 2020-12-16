@@ -226,28 +226,29 @@ class Solver(object):
                     print(log)
 
             if (e + 1) % self.sample_step == 0:
-                fake_hr = self.G(fixed_lr_image)
-                image_report = list()
-                image_report.append(fake_hr)
-                image_report.append(fixed_hr_image)
-                x_concat = torch.cat(image_report, dim=3)
-                sample_path = os.path.join(self.sample_dir, '{}-images.jpg'.format(e + 1))
-                save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
-
-                fake_hr = self.G(self.target_tensor)
-                sample_path = os.path.join(self.sample_dir, '{}-whole-images.jpg'.format(e + 1))
-                save_image(self.denorm(fake_hr.data.cpu()), sample_path, nrow=1, padding=0)
-
-                """
-                if self.training_mode == 'image_based':
+                with torch.no_grad():
+                    fake_hr = self.G(fixed_lr_image)
                     image_report = list()
                     image_report.append(fake_hr)
+                    image_report.append(fixed_hr_image)
                     x_concat = torch.cat(image_report, dim=3)
-                    sample_path = os.path.join(self.sample_dir, '{}-fake_images.jpg'.format(e + 1))
+                    sample_path = os.path.join(self.sample_dir, '{}-images.jpg'.format(e + 1))
                     save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
-                """
 
-                print('Saved real and fake images into {}...'.format(self.sample_dir))
+                    fake_hr = self.G(self.target_tensor)
+                    sample_path = os.path.join(self.sample_dir, '{}-whole-images.jpg'.format(e + 1))
+                    save_image(self.denorm(fake_hr.data.cpu()), sample_path, nrow=1, padding=0)
+
+                    """
+                    if self.training_mode == 'image_based':
+                        image_report = list()
+                        image_report.append(fake_hr)
+                        x_concat = torch.cat(image_report, dim=3)
+                        sample_path = os.path.join(self.sample_dir, '{}-fake_images.jpg'.format(e + 1))
+                        save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
+                    """
+
+                    print('Saved real and fake images into {}...'.format(self.sample_dir))
             # Save model checkpoints.
             if (e + 1) % self.save_step == 0 and (e + 1) >= self.save_start:
                 G_path = osp.join(self.model_dir, '{}-G.ckpt'.format(e + 1))
