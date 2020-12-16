@@ -56,7 +56,7 @@ class Solver(object):
         self.g_spec = config['TRAINING_CONFIG']['G_SPEC'] == 'True'
         self.d_spec = config['TRAINING_CONFIG']['D_SPEC'] == 'True'
 
-        self.target_img = Image.open(config['MODEL_CONFIG']['TARGET_IMG']).convert('RGB')
+        self.target_img = Image.open('sample_{}.png'.format(self.up_scale)).convert('RGB')
         target_transform = list()
         target_transform.append(T.ToTensor())
         target_transform.append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
@@ -73,9 +73,6 @@ class Solver(object):
             self.num_gpu = 0
             self.gpu = None
             self.gpu_list = None
-
-
-
 
         self.use_tensorboard = config['TRAINING_CONFIG']['USE_TENSORBOARD']
 
@@ -102,7 +99,7 @@ class Solver(object):
     def build_model(self, config):
 
         if self.num_gpu > 1:
-            self.G = nn.DataParallel(self.G, device_ids=self.gpu_list).to(self.gpu)
+            self.G = nn.DataParallel(RCAN(config), device_ids=self.gpu_list).to(self.gpu)
         elif self.num_gpu == 1:
             self.G = RCAN(config).to(self.gpu)
         else:

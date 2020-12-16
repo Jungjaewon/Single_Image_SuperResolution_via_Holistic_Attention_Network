@@ -165,4 +165,6 @@ class RCAN(nn.Module):
         x = self.tail(body_results[0] + feature_CSA + feature_LA)
         #x = self.add_mean(x)
 
+        del body_results
+
         return x

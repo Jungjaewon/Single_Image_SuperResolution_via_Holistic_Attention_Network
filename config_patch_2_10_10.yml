@@ -1,8 +1,8 @@
 
 MODEL_CONFIG:
   UP_SCALE: 2
-  N_RESGROUPS: 5
-  N_RESBLOCKS : 5
+  N_RESGROUPS: 10
+  N_RESBLOCKS : 10
   N_FEATURES : 64
   REDUCTION: 16
   RGB_RANGE : 255
@@ -14,7 +14,7 @@ TRAINING_CONFIG:
   #TRAINING : 'image_based' # 'image_based' 'patch_based'
   TRAINING : 'patch_based' # 'image_based' 'patch_based'
   EPOCH: 150
-  BATCH_SIZE: 4
+  BATCH_SIZE: 8
   PATCH_SIZE : 128
 
   # lr and lambda
@@ -54,9 +54,8 @@ TRAINING_CONFIG:
 
   # Directory
   HR_IMG_DIR : './sr_dataset/DIV2K_train_HR'
-  #LR_IMG_DIR : './sr_dataset/DIV2K_train_LR_mild' for scale 4
-  LR_IMG_DIR : './sr_dataset/DIV2K_train_LR_bicubic_X2' # for scale 4
-  TRAIN_DIR : 'super_resolution_trial'
+  LR_IMG_DIR : './sr_dataset/DIV2K_train_LR_bicubic_X2' # for scale 2
+  TRAIN_DIR : 'super_resolution_upscale2_resgroup10_resblk10'
   LOG_DIR : 'logs'
   SAMPLE_DIR : 'samples'
   RESULT_DIR : 'results'
