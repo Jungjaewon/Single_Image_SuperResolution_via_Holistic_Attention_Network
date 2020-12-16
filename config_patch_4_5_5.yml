@@ -13,12 +13,12 @@ MODEL_CONFIG:
 TRAINING_CONFIG:
   #TRAINING : 'image_based' # 'image_based' 'patch_based'
   TRAINING : 'patch_based' # 'image_based' 'patch_based'
-  EPOCH: 150
+  EPOCH: 300
   BATCH_SIZE: 8
   PATCH_SIZE : 128
 
   # lr and lambda
-  G_LR : 10e-6
+  G_LR : 10e-7
   D_LR : 20e-4
   LAMBDA_G_FAKE  : 1
   LAMBDA_G_RECON : 1
