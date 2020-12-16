@@ -1,0 +1,79 @@
+
+MODEL_CONFIG:
+  UP_SCALE: 4
+  N_RESGROUPS: 5
+  N_RESBLOCKS : 5
+  N_FEATURES : 64
+  REDUCTION: 16
+  RGB_RANGE : 255
+  N_COLORS : 3
+  RES_SCALE : 1
+
+
+TRAINING_CONFIG:
+  #TRAINING : 'image_based' # 'image_based' 'patch_based'
+  TRAINING : 'patch_based' # 'image_based' 'patch_based'
+  EPOCH: 150
+  BATCH_SIZE: 8
+  PATCH_SIZE : 128
+
+  # lr and lambda
+  G_LR : 10e-6
+  D_LR : 20e-4
+  LAMBDA_G_FAKE  : 1
+  LAMBDA_G_RECON : 1
+  LAMBDA_G_PERCEP : 0.01
+  LAMBDA_D_FAKE  : 1
+  LAMBDA_D_REAL  : 1
+  LAMBDA_GP : 1000
+
+  GAN_LOSS : 'wgan'
+  LOSS : 'L1'
+
+  #Model Settings
+
+
+  # Optimizer
+  OPTIM : ADAM
+  BETA1: 0.5
+  BETA2: 0.999
+  EPSILON : 1e-8
+  D_CRITIC : 1
+  G_CRITIC : 3
+
+  # Settings
+  NUM_WORKER : 4
+  MODE : 'train'
+  CPU_SEED : 123
+  GPU_SEED : 456
+  USE_TENSORBOARD : 'False' # 'True' or 'False'
+
+  #spectral norm
+  G_SPEC : 'False'
+  D_SPEC : 'True'
+
+  # Directory
+  HR_IMG_DIR : '/home/mlm11/sr_dataset/DIV2K_train_HR'
+  LR_IMG_DIR : '/home/mlm11/sr_dataset/DIV2K_train_LR_mild' # for scale 4
+  TRAIN_DIR : 'super_resolution_upscale4_resgroup5_resblk5'
+  LOG_DIR : 'logs'
+  SAMPLE_DIR : 'samples'
+  RESULT_DIR : 'results'
+  MODEL_DIR : 'models'
+
+  # GPU
+  GPU: "1"
+
+  # Step Size
+
+  SAMPLE_STEP : 1 # epoch based
+  LOG_STEP : 100 # iteration based
+  SAVE_STEP : 5 # epoch based
+  SAVE_START : 10
+  DECAY_START : 60
+  LR_DECAY_STEP : 10
+
+TEST_CONFIG:
+  TEST_EPOCH : 100
+
+
