@@ -4,6 +4,7 @@ import cv2
 import random
 import numpy as np
 
+from PIL import Image
 from torch.utils import data
 from torchvision import transforms as T
 
@@ -39,8 +40,8 @@ class DataSet(data.Dataset):
         iy = random.randrange(0, ih - ip + 1)
         tx, ty = self.up_scale * ix, self.up_scale * iy
 
-        lr_image = self.np2tensor(lr_image[iy:iy + ip, ix:ix + ip, :])
-        hr_image = self.np2tensor(hr_image[ty:ty + tp, tx:tx + tp, :])
+        lr_image = Image.fromarray(np.uint8(lr_image[iy:iy + ip, ix:ix + ip, :])).convert('RGB')
+        hr_image = Image.fromarray(np.uint8(hr_image[ty:ty + tp, tx:tx + tp, :])).convert('RGB')
 
         if torch.rand(1) > 0.5:
             lr_image = self.h_flip(lr_image)
@@ -71,7 +72,7 @@ def get_loader(config):
 
     img_transform = list()
 
-    #img_transform.append(T.ToTensor())
+    img_transform.append(T.ToTensor())
     img_transform.append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
     img_transform = T.Compose(img_transform)
 
