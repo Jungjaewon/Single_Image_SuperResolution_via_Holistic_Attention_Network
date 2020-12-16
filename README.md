@@ -21,11 +21,13 @@ Not implmented yet
 ## Architecture
 ![architecture](img/overview.png)
 ## Results
-![shifted_result](img/100-images_shifted.jpg)
-![normalresult1](img/100-images.jpg)
-![normalresult2](img/300-images.jpg)
+### Patch Results
+![shifted_result](img/patch_training.png)
+### Image Results
+![normalresult1](img/image_results.png)
 
 ## Comments
- In this implementation, the triplet loss function is meaningless. It always show zeros for scaled dot product and l2 norm distance, if I am wrong, please make issue. Without the triplet loss, we can obtain good results. Even if a model is trained only 2 epochs, the model shows meaningful results.
+ In this implementation, a light model is used; 5 residual_groups and residual blocks. The input of high resolution images generated from the model are half size. Hyper-parameter tuning is need to get better results. If you have questions, Please leave an issue. 
 ## Reference
-1. dataset : https://data.vision.ee.ethz.ch/cvl/DIV2K/
+1. Dataset : https://data.vision.ee.ethz.ch/cvl/DIV2K/
+2. RCAN : https://github.com/yulunzhang/RCAN
